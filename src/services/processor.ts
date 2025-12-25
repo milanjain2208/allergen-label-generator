@@ -11,6 +11,7 @@ export const processExcelStream = async (
     // 1. SETUP TEMP DATABASE
     const dbPath = filePath + '.db';
     const db = new Database(dbPath);
+    const fileId = filePath.split('/').pop();
 
     db.exec(`
         CREATE TABLE raw_recipes (
@@ -47,7 +48,7 @@ export const processExcelStream = async (
     let ingredientColIdx = 2; // Default Column B
 
     // 2. INGEST (Excel -> SQLite)
-    console.log("Ingesting Excel File data to SQLite DB");
+    console.log(`Ingesting Excel File data to SQLite DB for file ${fileId}`);
     for await (const worksheetReader of workbookReader) {
         for await (const row of worksheetReader) {
             // Skip empty rows (Ghost Rows)
@@ -73,7 +74,7 @@ export const processExcelStream = async (
                         const val = extractCellValue(v);
                         return val && val.toLowerCase().includes('ingredient');
                     });
-                    console.log(`Header found: Product col=${productColIdx}, Ingredient col=${ingredientColIdx}`);
+                    console.log(`Header found: Product col=${productColIdx}, Ingredient col=${ingredientColIdx}, for file ${fileId}`);
                 }
                 continue;
             }
@@ -117,7 +118,7 @@ export const processExcelStream = async (
     let currentIngredients: Set<string> = new Set();
 
     // Iterate through the cursor (Memory safe)
-    console.log("Processing Recipes...");
+    console.log(`Processing Recipes for file ${fileId}`);
     for (const row of stmt.iterate()) {
         const { product, ingredient } = row as { product: string; ingredient: string };
 
@@ -146,6 +147,8 @@ export const processExcelStream = async (
     } catch (e) {
         console.error("Cleanup failed", e);
     }
+
+    console.log(`Processing completed successfully for file ${fileId}.`);
 };
 
 async function processSingleRecipe(
