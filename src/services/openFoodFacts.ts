@@ -1,5 +1,6 @@
 import axios from 'axios';
 import Bottleneck from 'bottleneck';
+import { LRUCache } from 'lru-cache';
 
 // RATE LIMITER CONFIGURATION (Using the Token Bucket)
 const limiter = new Bottleneck({
@@ -50,7 +51,12 @@ limiter.on('failed', async (error, jobInfo) => {
 });
 
 // Cache stores: null = not found, string[] = allergens (can be empty if found but no allergens)
-const cache = new Map<string, string[] | null>();
+// Fix: Use LRU Cache to prevent memory leaks with unbounded growth
+const cache = new LRUCache<string, any>({
+    max: 5000,                  // Max 5000 items
+    ttl: 1000 * 60 * 60 * 24,   // 24 hour TTL
+    allowStale: false,
+});
 
 /**
  * Fetches allergens for an ingredient from Open Food Facts API
@@ -63,6 +69,7 @@ export const getAllergens = async (ingredient: string): Promise<string[] | null>
 
     try {
         // We wrap the call in limiter.schedule
+
         // If it fails, the 'failed' event above triggers.
         // If that event returns a number, Bottleneck waits and runs this block AGAIN.
         const response = await limiter.schedule({ id: normalized }, () =>

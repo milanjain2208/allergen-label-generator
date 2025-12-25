@@ -75,8 +75,14 @@ export const processExcelStream = async (
                         return val && val.toLowerCase().includes('ingredient');
                     });
                     console.log(`Header found: Product col=${productColIdx}, Ingredient col=${ingredientColIdx}, for file ${fileId}`);
+                    continue; // Skip the header row itself
+                } else {
+                    // Fallback: If it doesn't look like a header, treat it as data!
+                    // We assume defaults (Column 1 and 2) and proceed to process THIS row.
+                    console.warn(`No explicit header found on row ${row.number}. Assuming data (Defaults: Col 1 & 2).`);
+                    headerFound = true;
+                    // Fall through to data processing logic below...
                 }
-                continue;
             }
 
             // Data Cleaning: Extract value safely using the utility function

@@ -25,7 +25,9 @@ export const setupWebSocket = (wss: WebSocketServer) => {
                 }
             } catch (error) {
                 console.error('WS Error:', error);
-                ws.send(JSON.stringify({ type: 'ERROR', message: 'Processing failed.' }));
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Processing failed.' }));
+                }
             }
         });
     });

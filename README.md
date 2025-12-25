@@ -40,7 +40,7 @@ A backend service that processes recipes from Excel files and determines allerge
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:milanjain2208/allergen-label-generator.git
    cd allergen-label-generator
    ```
 
@@ -221,7 +221,7 @@ Excel File → Upload API → Disk Storage
 | **Upload Route** | `src/routes/api.ts` | File upload handling (multer) |
 | **WebSocket Handler** | `src/websocket/handler.ts` | Real-time communication |
 | **Processor** | `src/services/processor.ts` | Excel streaming + SQLite + batching |
-| **API Client** | `src/services/openFoodFacts.ts` | Rate-limited API calls |
+| **API Client** | `src/services/openFoodFacts.ts` | Rate-limited API calls + LRU Cache |
 | **Cell Parser** | `src/utils/extractCellValue.ts` | Normalizes Rich Text, Formulas, Hyperlinks to plain text |
 
 ### Processing Strategy
@@ -288,6 +288,7 @@ Excel File → Upload API → Disk Storage
 4. **Batch REST Endpoint** – Add synchronous endpoint that returns full JSON after processing
 5. **Progress Percentage** – Pre-scan file to count recipes, then emit progress %
 6. **Unit Tests** – Add Jest tests for processor and API client
+7. **Server-Sent Events (SSE)** – Use SSE instead of WebSockets, since communication is primarily one-way (server → client) for progress updates. This would simplify the client-side implementation and firewall handling.
 
 ### Scaling Further
 
