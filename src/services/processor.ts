@@ -161,20 +161,33 @@ async function processSingleRecipe(
 
     const flagged_ingredients: Record<string, string[]> = {};
     const recipeAllergens = new Set<string>();
+    const unrecognized_ingredients: string[] = [];
 
     ingredients.forEach((ing, idx) => {
         const found = allergensArray[idx];
-        if (found.length > 0) {
+
+        if (found === null) {
+            // Ingredient not found in Open Food Facts database
+            unrecognized_ingredients.push(ing);
+        } else if (found.length > 0) {
+            // Ingredient found with allergens
             flagged_ingredients[ing] = found;
             found.forEach(a => recipeAllergens.add(a));
         }
+        // If found is an empty array, ingredient exists but has no allergens - nothing to do
     });
+
+    // Determine message based on results
+    const message = unrecognized_ingredients.length > 0
+        ? "Some ingredients were not recognized."
+        : "Processed successfully.";
 
     const result = {
         recipe_name: name,
         allergens: Array.from(recipeAllergens),
         flagged_ingredients,
-        message: recipeAllergens.size > 0 ? "Processed successfully." : "No allergens found."
+        unrecognized_ingredients,
+        message
     };
 
     // Emitting Result via WebSocket Callback
@@ -182,3 +195,4 @@ async function processSingleRecipe(
         onProgress({ type: 'RECIPE_COMPLETE', result });
     }
 }
+

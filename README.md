@@ -126,6 +126,8 @@ Send to initiate processing:
 ```
 
 2. **RECIPE_COMPLETE** – Each recipe result
+
+When some ingredients are not found:
 ```json
 {
   "type": "RECIPE_COMPLETE",
@@ -136,6 +138,26 @@ Send to initiate processing:
       "wheat flour": ["gluten"],
       "mozzarella cheese": ["milk"]
     },
+    "unrecognized_ingredients": ["tomato sauce"],
+    "message": "Some ingredients were not recognized."
+  }
+}
+```
+
+When all ingredients are recognized:
+```json
+{
+  "type": "RECIPE_COMPLETE",
+  "result": {
+    "recipe_name": "Caesar Salad",
+    "allergens": ["gluten", "milk", "fish", "egg"],
+    "flagged_ingredients": {
+      "croutons": ["gluten"],
+      "parmesan cheese": ["milk"],
+      "anchovies": ["fish"],
+      "egg": ["egg"]
+    },
+    "unrecognized_ingredients": [],
     "message": "Processed successfully."
   }
 }
