@@ -47,6 +47,7 @@ export const processExcelStream = async (
     let ingredientColIdx = 2; // Default Column B
 
     // 2. INGEST (Excel -> SQLite)
+    console.log("Ingesting Excel File data to SQLite DB");
     for await (const worksheetReader of workbookReader) {
         for await (const row of worksheetReader) {
             // Skip empty rows (Ghost Rows)
@@ -116,10 +117,11 @@ export const processExcelStream = async (
     let currentIngredients: Set<string> = new Set();
 
     // Iterate through the cursor (Memory safe)
+    console.log("Processing Recipes...");
     for (const row of stmt.iterate()) {
         const { product, ingredient } = row as { product: string; ingredient: string };
 
-        console.log("Processing Recipe:", product, "with ingredient:", ingredient);
+        // console.log("Processing Recipe:", product, "with ingredient:", ingredient);
 
         // Group change detection
         if (product !== currentRecipeName && currentRecipeName !== null) {

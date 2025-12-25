@@ -283,6 +283,66 @@ Open `public/index.html` in a browser (or serve it via a local server) to test:
 
 ---
 
+## Testing with Postman
+
+### Step 1: Upload the Excel File
+
+1. Open Postman and create a new **POST** request
+2. Set the URL to: `http://localhost:3000/api/upload`
+3. Go to the **Body** tab
+4. Select **form-data**
+5. Add a new key:
+   - Key: `file` (set type to **File** using the dropdown)
+   - Value: Select your `.xlsx` file
+6. Click **Send**
+
+**Expected Response:**
+```json
+{
+  "message": "File uploaded successfully",
+  "fileId": "abc123def456..."
+}
+```
+
+### Step 2: Process via WebSocket
+
+Since Postman supports WebSocket connections:
+
+1. Create a new **WebSocket Request** in Postman
+2. Set the URL to: `ws://localhost:3000`
+3. Click **Connect**
+4. Once connected, send this message (replace `fileId` with the one from Step 1):
+```json
+{
+  "type": "START_PROCESS",
+  "fileId": "abc123def456..."
+}
+```
+
+**Expected Response Messages:**
+```json
+{"type":"INFO","message":"Starting processing..."}
+{"type":"RECIPE_COMPLETE","result":{"recipe_name":"...","allergens":[...],...}}
+{"type":"DONE","message":"All recipes processed."}
+```
+
+### Alternative: Using wscat (CLI Tool)
+
+If you prefer command-line:
+
+```bash
+# Install wscat
+npm install -g wscat
+
+# Connect to WebSocket
+wscat -c ws://localhost:3000
+
+# Send message (after connecting)
+{"type":"START_PROCESS","fileId":"abc123def456..."}
+```
+
+---
+
 ## Excel File Format
 
 The expected format (Column A = Recipe Name, Column B = Ingredient):
