@@ -274,8 +274,7 @@ Excel File → Upload API → Disk Storage
 3. **Redis Caching** – Replace in-memory cache with Redis for persistence across restarts
 4. **Batch REST Endpoint** – Add synchronous endpoint that returns full JSON after processing
 5. **Progress Percentage** – Pre-scan file to count recipes, then emit progress %
-6. **Retry Logic** – Implement exponential backoff for failed API requests
-7. **Unit Tests** – Add Jest tests for processor and API client
+6. **Unit Tests** – Add Jest tests for processor and API client
 
 ### Scaling Further
 
