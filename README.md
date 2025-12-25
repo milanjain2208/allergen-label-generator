@@ -18,6 +18,7 @@ A backend service that processes recipes from Excel files and determines allerge
 ## Features
 
 - ✅ **Excel Streaming** – Processes large Excel files with low memory footprint
+- ✅ **Unordered Recipe Handling** – SQLite-based sorting handles scrambled/unordered Excel data
 - ✅ **Rate Limiting** – Token bucket algorithm prevents API throttling
 - ✅ **In-Memory Caching** – Avoids redundant API calls for repeated ingredients
 - ✅ **Real-Time Progress** – WebSocket support for live processing updates
@@ -162,10 +163,15 @@ Send to initiate processing:
 ```
 Excel File → Upload API → Disk Storage
                               ↓
-           WebSocket ← Processor ← Stream Reader
+                    Stream Reader (ExcelJS)
                               ↓
-                     Open Food Facts API
-                     (Rate Limited + Cached)
+                    Temp SQLite Database
+                    (Batch Insert + Index)
+                              ↓
+                    Sorted Query (ORDER BY product)
+                              ↓
+           WebSocket ← Processor → Open Food Facts API
+                                   (Rate Limited + Cached)
 ```
 
 ### Key Components
@@ -182,13 +188,20 @@ Excel File → Upload API → Disk Storage
 ### Processing Strategy
 
 1. **Streaming Excel Parser** – Uses ExcelJS streaming API to read row-by-row without loading entire file into memory
-2. **Recipe Grouping** – Detects recipe boundaries by monitoring changes in the product column
-3. **Parallel Allergen Lookup** – Fetches allergen data for all ingredients in a recipe concurrently
-4. **Rate Limiting** – Bottleneck library implements token bucket:
+2. **SQLite Intermediate Storage** – To handle unordered/scrambled recipes in Excel files:
+   - Data is first ingested into a temporary SQLite database
+   - Batch inserts (1000 rows at a time) optimize write performance
+   - An index on the `product` column enables fast sorting
+   - Query with `ORDER BY product` groups all ingredients for the same recipe together
+   - This approach uses disk instead of RAM, maintaining memory efficiency
+3. **Recipe Grouping** – Detects recipe boundaries by monitoring changes in the sorted product column
+4. **Parallel Allergen Lookup** – Fetches allergen data for all ingredients in a recipe concurrently
+5. **Rate Limiting** – Bottleneck library implements token bucket:
    - Max 5 concurrent connections
    - 500ms minimum gap between requests
    - 10 tokens per minute burst capacity
-5. **Caching** – In-memory Map stores allergen results to avoid duplicate API calls
+6. **Caching** – In-memory Map stores allergen results to avoid duplicate API calls
+7. **Cleanup** – Both the uploaded Excel file and temporary SQLite database are deleted after processing
 
 ---
 
@@ -196,12 +209,13 @@ Excel File → Upload API → Disk Storage
 
 | Edge Case | Handling Strategy |
 |-----------|-------------------|
+| **Unordered/Scrambled recipes** | SQLite intermediate storage sorts data by product name before processing, so recipes don't need to be grouped in the Excel file |
 | **Ingredient not found** | Returns empty allergen array, ingredient not flagged |
 | **No allergens for ingredient** | Returns empty allergen array (e.g., "water") |
 | **Ambiguous names** | Uses first API result; could be improved with fuzzy matching |
 | **Malformed Excel** | Gracefully skips invalid rows, continues processing |
 | **API failure** | Logs error, returns empty array, doesn't break processing |
-| **Large files** | Streaming prevents memory issues |
+| **Large files** | Streaming + SQLite prevents memory issues |
 | **Duplicate ingredients** | Set-based collection automatically deduplicates |
 
 ---
