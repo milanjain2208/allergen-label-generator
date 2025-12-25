@@ -76,12 +76,15 @@ export const getAllergens = async (ingredient: string): Promise<string[] | null>
                     fields: 'product_name,allergens_tags'
                 },
                 headers: {
-                    'User-Agent': 'Alg (milanjain2208@gmail.com)'
+                    'User-Agent': (process.env.APP_NAME && process.env.USER_EMAIL) ? `${process.env.APP_NAME} (${process.env.USER_EMAIL})` : 'Alg (unknown2208@gmail.com)'
                 },
                 // Set a timeout so we don't wait forever for a hung request
                 timeout: 30000
             })
         );
+
+        // console.log("APP_Name", process.env.APP_NAME)
+        // console.log("USER_EMAIL", process.env.USER_EMAIL)
 
         const product = response.data.products?.[0];
 

@@ -49,6 +49,19 @@ A backend service that processes recipes from Excel files and determines allerge
    npm install
    ```
 
+3. **Configure Environment Variables:**
+   Create a `.env` file in the root directory (use `.env.example` as a reference):
+   ```bash
+   cp .env.example .env
+   ```
+   Open `.env` and update the values:
+   ```env
+   APP_NAME=AllergenLabelProject
+   USER_EMAIL=your_email@example.com
+   PORT=3000
+   ```
+   > **Note:** The `USER_EMAIL` is used for the User-Agent header in Open Food Facts API requests to identify your application.
+
 ---
 
 ## Running the Server
