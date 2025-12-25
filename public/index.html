@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>Allergen Label Generator</h2>
+    <input type="file" id="fileInput" />
+    <button onclick="uploadAndProcess()">Upload & Process</button>
+    <div id="status" style="margin-top:20px; font-weight:bold;"></div>
+    <ul id="results"></ul>
+
+    <script>
+        async function uploadAndProcess() {
+            const fileInput = document.getElementById('fileInput');
+            const statusDiv = document.getElementById('status');
+            const resultsList = document.getElementById('results');
+
+            if (!fileInput.files[0]) return alert("Select a file!");
+
+            // 1. Upload
+            statusDiv.innerText = "Uploading...";
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const res = await fetch('http://localhost:3000/api/upload', { method: 'POST', body: formData });
+            const { fileId } = await res.json();
+
+            // 2. Connect WebSocket
+            statusDiv.innerText = "Processing...";
+            const ws = new WebSocket('ws://localhost:3000');
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'START_PROCESS', fileId }));
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'RECIPE_COMPLETE') {
+                    const li = document.createElement('li');
+                    li.innerText = `✅ ${data.result.recipe_name}: Found ${data.result.allergens.join(', ') || 'None'}`;
+                    resultsList.appendChild(li);
+                } else if (data.type === 'DONE') {
+                    statusDiv.innerText = "Done!";
+                    ws.close();
+                }
+            };
+        }
+    </script>
+</body>
+</html>
