@@ -2,18 +2,16 @@ import ExcelJS from 'exceljs';
 import fs from 'fs';
 import Database from 'better-sqlite3';
 import { getAllergens } from './openFoodFacts';
+import { extractCellValue } from '../utils/extractCellValue';
 
 export const processExcelStream = async (
     filePath: string,
     onProgress?: (data: any) => void
 ) => {
     // 1. SETUP TEMP DATABASE
-    // We create a temp DB file so we don't use RAM for sorting
     const dbPath = filePath + '.db';
     const db = new Database(dbPath);
 
-    // Create a table for raw inputs.
-    // We index 'product' for fast retrieval later.
     db.exec(`
         CREATE TABLE raw_recipes (
             product TEXT,
@@ -24,26 +22,71 @@ export const processExcelStream = async (
 
     const insertStmt = db.prepare('INSERT INTO raw_recipes (product, ingredient) VALUES (?, ?)');
 
-    // 2. INGEST (Excel -> SQLite)
     // Running this in a transaction for speed (batch inserts are much faster)
-    const insertMany = db.transaction((rows: { product: string; ingredient: string }[]) => {
+    const insertMany = db.transaction((rows: { product: string; ingredient: string | null }[]) => {
         for (const row of rows) insertStmt.run(row.product, row.ingredient);
     });
 
-    const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, {});
-    let batch: { product: string; ingredient: string }[] = [];
+    // File Corruption Check
+    let workbookReader;
+    try {
+        workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, {});
+    } catch (err) {
+        if (onProgress) {
+            onProgress({ type: 'ERROR', message: 'File is corrupted or not a valid Excel file.' });
+        }
+        // Cleanup
+        db.close();
+        try { fs.unlinkSync(dbPath); } catch (e) { /* ignore */ }
+        return;
+    }
 
+    let batch: { product: string; ingredient: string | null }[] = [];
+    let headerFound = false;
+    let productColIdx = 1;    // Default Column A
+    let ingredientColIdx = 2; // Default Column B
+
+    // 2. INGEST (Excel -> SQLite)
     for await (const worksheetReader of workbookReader) {
         for await (const row of worksheetReader) {
-            if (row.number === 1) continue; // Skip header row
+            // Skip empty rows (Ghost Rows)
+            if (!row.hasValues) continue;
 
             const rowData = row.values as any[];
-            const product = rowData[1];
-            const ingredient = rowData[2];
+
+            // Smart Header Detection
+            // We don't assume Row 1 is header. We look for the FIRST row containing "Product" and "Ingredient"
+            if (!headerFound) {
+                const rowString = rowData
+                    .map(v => (v ? extractCellValue(v)?.toLowerCase() : ''))
+                    .join(' ');
+
+                if (rowString.includes('product') && rowString.includes('ingredient')) {
+                    headerFound = true;
+                    // Dynamically find which column is which
+                    productColIdx = rowData.findIndex(v => {
+                        const val = extractCellValue(v);
+                        return val && val.toLowerCase().includes('product');
+                    });
+                    ingredientColIdx = rowData.findIndex(v => {
+                        const val = extractCellValue(v);
+                        return val && val.toLowerCase().includes('ingredient');
+                    });
+                    console.log(`Header found: Product col=${productColIdx}, Ingredient col=${ingredientColIdx}`);
+                }
+                continue;
+            }
+
+            // Data Cleaning: Extract value safely using the utility function
+            const rawProduct = rowData[productColIdx];
+            const rawIngredient = rowData[ingredientColIdx];
+
+            const product = extractCellValue(rawProduct);
+            const ingredient = extractCellValue(rawIngredient);
 
             if (product) {
                 batch.push({ product, ingredient });
-                // Batch insert every 1000 rows to keep it fast
+                // Batch insert every 1000 rows
                 if (batch.length >= 1000) {
                     insertMany(batch);
                     batch = [];
@@ -51,24 +94,34 @@ export const processExcelStream = async (
             }
         }
     }
+
     // Insert remaining rows
     if (batch.length > 0) insertMany(batch);
 
+    // If no header was found, emit a warning but try to continue with defaults
+    if (!headerFound) {
+        console.warn('No header row found, using default columns (A=Product, B=Ingredient)');
+        if (onProgress) {
+            onProgress({
+                type: 'WARNING',
+                message: 'No header row found. Assuming Column A = Product, Column B = Ingredient.'
+            });
+        }
+    }
+
     // 3. PROCESS (SQLite -> External API)
-    // Now we query the DB sorted by Product.
-    // This effectively "Groups" the scrambled file.
     const stmt = db.prepare('SELECT product, ingredient FROM raw_recipes ORDER BY product');
 
     let currentRecipeName: string | null = null;
     let currentIngredients: Set<string> = new Set();
 
-    // Iterate strictly through the cursor (Memory safe)
+    // Iterate through the cursor (Memory safe)
     for (const row of stmt.iterate()) {
         const { product, ingredient } = row as { product: string; ingredient: string };
 
         console.log("Processing Recipe:", product, "with ingredient:", ingredient);
 
-        // Group change detection - when we encounter a new product, process the previous one
+        // Group change detection
         if (product !== currentRecipeName && currentRecipeName !== null) {
             await processSingleRecipe(currentRecipeName, currentIngredients, onProgress);
             currentIngredients.clear();
